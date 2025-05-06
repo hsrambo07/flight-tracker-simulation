@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <title>Flight Tracker</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <style>
+    html,body,#map{height:100%;margin:0}
+    .plane{font-family:monospace;font-size:28px;transform:translate(-50%,-50%);color:white;text-shadow:0 0 3px black,0 0 5px rgba(0,0,0,0.7)}
+    .leaflet-control-attribution{display:none}
+    .tooltip{background:#000a;color:#fff;padding:8px 12px;border-radius:4px;font:13px system-ui;max-width:300px}
+    .tooltip h3{margin:0 0 5px 0;font-size:15px;border-bottom:1px solid #fff5}
+    .tooltip table{border-spacing:5px 2px}
+    .tooltip td:first-child{color:#aaf;white-space:nowrap}
+    #status{position:fixed;bottom:10px;left:10px;background:rgba(0,0,0,0.7);color:white;padding:8px;
+            font-family:monospace;border-radius:4px;z-index:1000;}
+    body.portfolio-mode #status{display:none;}
+    body.portfolio-mode .leaflet-control{display:none;}
+  </style>
+</head>
+<body class="portfolio-mode">
+<div id="map"></div>
+<div id="status">Connecting to flight data...</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+/* ---------- map ---------- */
+// Fixed view for Western Europe - locked for portfolio background
+const MAP_CENTER = [48.0, 5.0]; // Central Europe
+const MAP_BOUNDS = [
+  [42.0, -5.0], // Southwest corner - tightened bounds to show busy European airspace
+  [55.0, 15.0]  // Northeast corner - covering UK, France, Germany, Benelux
+];
+
+const map = L.map('map', {
+  zoomControl: false,
+  dragging: false,
+  zoomSnap: 0.1,
+  boxZoom: false,
+  doubleClickZoom: false,
+  scrollWheelZoom: false,
+  keyboard: false,
+  tap: false,
+  touchZoom: false,
+  maxBounds: MAP_BOUNDS,
+  maxBoundsViscosity: 1.0
+}).fitBounds(MAP_BOUNDS);
+
+// Switched to a more visible light map
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  maxZoom: 18,
+  opacity: 0.8
+}).addTo(map);
+
+// Layers
+const tails = L.layerGroup().addTo(map);
+const planes = L.layerGroup().addTo(map);
+
+/* ---------- plane icon ---------- */
+function planeIcon(dirDeg){
+  return L.divIcon({
+    className:'plane',
+    html:`<div style="transform: rotate(${dirDeg - 90}deg)">✈</div>`, // Fix orientation by subtracting 90 degrees
+    iconSize:[40,40]
+  });
+}
+
+/* ---------- playback engine ---------- */
+let allFrames = [];                // [{ts, flights:[…]}, …]  (ascending ts)
+let cursor = 0;
+let lastUpdateTime = 0;
+const FPS = 30;                   // Increased frames per second for smoother animation
+const TAIL_MINUTES = 30;          // show 30 minutes of trajectory
+const STATUS_EL = document.getElementById('status');
+let animationRunning = false;
+
+// Start animation loop
+setInterval(drawFrame, 1000/FPS);
+
+// Store flight positions between updates for interpolation
+let currentFlights = new Map(); // icao -> {current: {lat, lon}, target: {lat, lon}, ...}
+
+// Linear interpolation helper
+function lerp(start, end, t) {
+  return start + (end - start) * t;
+}
+
+function drawFrame(){
+  const now = Date.now();
+  
+  if(allFrames.length === 0) {
+    STATUS_EL.textContent = "Waiting for flight data...";
+    return;
+  }
+
+  // Always show latest data
+  cursor = allFrames.length - 1;
+  const frame = allFrames[cursor];
+  if (!frame || !frame.flights) {
+    console.error("Invalid frame:", frame);
+    return;
+  }
+
+  // Update flight status text
+  STATUS_EL.textContent = `Tracking ${frame.flights.length} flights | ${new Date().toLocaleTimeString()}`;
+  
+  // Process flights for rendering
+  const tailLines = [], markers = [];
+  
+  // Update our flight position tracking
+  frame.flights.forEach(flight => {
+    if (!flight.lat || !flight.lon) return; // Skip invalid flights
+    
+    // Skip flights outside our visible bounds
+    if (flight.lat < MAP_BOUNDS[0][0] || flight.lat > MAP_BOUNDS[1][0] || 
+        flight.lon < MAP_BOUNDS[0][1] || flight.lon > MAP_BOUNDS[1][1]) {
+      return;
+    }
+    
+    const flightInfo = currentFlights.get(flight.icao) || {
+      callsign: flight.callsign,
+      current: {lat: flight.lat, lon: flight.lon, track: flight.track},
+      target: {lat: flight.lat, lon: flight.lon, track: flight.track},
+      alt: flight.alt,
+      speed: flight.speed,
+      lastUpdate: now
+    };
+    
+    // Update target position with new data
+    flightInfo.target = {
+      lat: flight.lat, 
+      lon: flight.lon,
+      track: flight.track
+    };
+    flightInfo.alt = flight.alt;
+    flightInfo.speed = flight.speed;
+    flightInfo.callsign = flight.callsign;
+    
+    currentFlights.set(flight.icao, flightInfo);
+  });
+  
+  // Animate all tracked flights
+  currentFlights.forEach((flightInfo, icao) => {
+    // Calculate elapsed time since last position update (in seconds)
+    const elapsed = (now - flightInfo.lastUpdate) / 1000;
+    
+    // Move current position toward target (smooth animation)
+    // Using a faster 1-second interpolation time instead of 2 for quicker movement
+    const t = Math.min(elapsed / 1, 1);
+    
+    flightInfo.current.lat = lerp(flightInfo.current.lat, flightInfo.target.lat, t);
+    flightInfo.current.lon = lerp(flightInfo.current.lon, flightInfo.target.lon, t);
+    
+    // Smoothly rotate the plane icon (take shortest rotation path)
+    let currentTrack = flightInfo.current.track || 0;
+    let targetTrack = flightInfo.target.track || 0;
+    
+    // Normalize angles to (-180, 180) for proper interpolation
+    const diff = ((targetTrack - currentTrack + 180) % 360) - 180;
+    flightInfo.current.track = (currentTrack + diff * t + 360) % 360;
+    
+    // If we've reached the target position, update the lastUpdate time
+    if (t >= 1) {
+      flightInfo.lastUpdate = now;
+      flightInfo.current = {...flightInfo.target};
+    }
+    
+    // Skip flights outside our visible bounds
+    if (flightInfo.current.lat < MAP_BOUNDS[0][0] || flightInfo.current.lat > MAP_BOUNDS[1][0] || 
+        flightInfo.current.lon < MAP_BOUNDS[0][1] || flightInfo.current.lon > MAP_BOUNDS[1][1]) {
+      return;
+    }
+    
+    // Find flight history for this aircraft
+    const tail = [];
+    
+    // Add current interpolated position
+    tail.push([flightInfo.current.lat, flightInfo.current.lon]);
+    
+    // Add historical positions
+    // Calculate how many frames to look back for TAIL_MINUTES minutes
+    const framesPerMinute = 60/POLL_S; // Using POLL_S from crawler
+    const framesToLookBack = TAIL_MINUTES * framesPerMinute;
+    
+    for(let i=0; i < framesToLookBack; i++){
+      const idx = cursor - i;
+      if(idx < 0) break;
+      const pastFrame = allFrames[idx];
+      if (!pastFrame || !pastFrame.flights) break;
+      const p = pastFrame.flights.find(x => x.icao === icao);
+      if(!p) break;
+      
+      // Skip points outside visible bounds
+      if (p.lat < MAP_BOUNDS[0][0] || p.lat > MAP_BOUNDS[1][0] || 
+          p.lon < MAP_BOUNDS[0][1] || p.lon > MAP_BOUNDS[1][1]) {
+        continue;
+      }
+      
+      tail.push([p.lat, p.lon]);
+    }
+    
+    if(tail.length > 1) {
+      tailLines.push({
+        coords: tail,
+        callsign: flightInfo.callsign,
+        alt: flightInfo.alt,
+        speed: flightInfo.speed,
+        icao: icao
+      });
+    }
+
+    // Create marker at current interpolated position
+    const m = L.marker(
+      [flightInfo.current.lat, flightInfo.current.lon], 
+      {icon: planeIcon(flightInfo.current.track || 0)}
+    ).on('mouseover', e => {
+      const div = document.createElement('div');
+      div.className = 'tooltip';
+      div.innerHTML = `
+        <h3>${flightInfo.callsign}</h3>
+        <table>
+          <tr><td>ICAO:</td><td>${icao}</td></tr>
+          <tr><td>Altitude:</td><td>${Math.round(flightInfo.alt||0).toLocaleString()} m</td></tr>
+          <tr><td>Speed:</td><td>${Math.round(flightInfo.speed||0).toLocaleString()} m/s</td></tr>
+          <tr><td>Heading:</td><td>${Math.round(flightInfo.current.track||0)}°</td></tr>
+          <tr><td>Position:</td><td>${flightInfo.current.lat.toFixed(4)}, ${flightInfo.current.lon.toFixed(4)}</td></tr>
+        </table>
+      `;
+      e.target.bindTooltip(div, {permanent: false, offset: [0,-20]}).openTooltip();
+    });
+    markers.push(m);
+  });
+
+  // Clear previous layers
+  tails.clearLayers();
+  planes.clearLayers();
+  
+  // Add updated layers
+  tailLines.forEach(t => {
+    // Use a color based on the callsign to differentiate flights
+    const hash = t.callsign.split('').reduce((a,b)=>{a=((a<<5)-a)+b.charCodeAt(0);return a&a},0);
+    const color = `hsl(${Math.abs(hash) % 360}, 70%, 50%)`;
+    
+    L.polyline(t.coords, {
+      color: color,
+      weight: 1.5, // Thinner trajectory lines
+      opacity: 0.75,
+      dashArray: '5, 8', // Make the lines dotted
+      lineCap: 'round'
+    }).bindTooltip(`${t.callsign}`, {
+      permanent: false,
+      direction: 'top',
+      className: 'tooltip'
+    }).addTo(tails);
+  });
+  
+  markers.forEach(m => m.addTo(planes));
+}
+
+// Constant from crawler.py for refreshes (used for historical frames calculation)
+const POLL_S = 5;
+
+/* ---------- websocket ingestion ---------- */
+const ws = new WebSocket('ws://localhost:8765');
+ws.onmessage = msg => {
+  try {
+    const data = JSON.parse(msg.data);
+    if(data.type === 'snapshot'){
+      allFrames = data.frames.sort((a,b) => a.ts - b.ts);
+      cursor = allFrames.length - 1; // start live
+      
+      const flightCount = allFrames.length > 0 ? allFrames[allFrames.length-1].flights.length : 0;
+      console.log('[ws] received', allFrames.length, 'frames with', flightCount, 'flights');
+      
+      // Initialize flight positions if this is our first data
+      if (!animationRunning && flightCount > 0) {
+        const latestFlights = allFrames[allFrames.length-1].flights;
+        latestFlights.forEach(flight => {
+          if (flight.lat && flight.lon) {
+            currentFlights.set(flight.icao, {
+              callsign: flight.callsign,
+              current: {lat: flight.lat, lon: flight.lon, track: flight.track},
+              target: {lat: flight.lat, lon: flight.lon, track: flight.track},
+              alt: flight.alt,
+              speed: flight.speed,
+              lastUpdate: Date.now()
+            });
+          }
+        });
+        animationRunning = true;
+      }
+      
+      if (flightCount > 0) {
+        STATUS_EL.textContent = `Tracking ${flightCount} flights | ${new Date().toLocaleTimeString()}`;
+      }
+    }
+  } catch (e) {
+    console.error('[ws] Error processing message:', e);
+    STATUS_EL.textContent = "Error processing flight data";
+  }
+};
+
+ws.onopen = () => {
+  console.log('[ws] connected');
+  STATUS_EL.textContent = "Connected, waiting for flight data...";
+};
+
+ws.onerror = e => {
+  console.error('[ws] error', e);
+  STATUS_EL.textContent = "Connection error! Check console.";
+};
+
+ws.onclose = () => {
+  console.log('[ws] connection closed');
+  STATUS_EL.textContent = "Connection closed. Refresh to reconnect.";
+};
+</script>
+</body>
+</html>
