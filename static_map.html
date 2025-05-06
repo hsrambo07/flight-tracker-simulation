@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Flight Tracker</title>
+  <style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      width: 100%;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: #f5f5f5;
+    }
+    
+    #map-container {
+      position: fixed;
+      width: 1000px;
+      height: 600px;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      border: 1px solid #ddd;
+      box-shadow: 0 0 20px rgba(0,0,0,0.1);
+      background-color: #e8e0d8;
+      overflow: hidden;
+    }
+    
+    #flight-map {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+    
+    /* Simple plane marker */
+    .plane {
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      margin-left: -10px;
+      margin-top: -10px;
+      font-size: 14px;
+      color: #000;
+      text-shadow: 0 0 3px white;
+      transform-origin: center center;
+      pointer-events: none;
+      transition: left 0.5s linear, top 0.5s linear;
+    }
+    
+    /* Flight paths */
+    .path {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+    
+    /* Map features */
+    .map-feature {
+      position: absolute;
+      color: #999;
+      font-size: 12px;
+      pointer-events: none;
+    }
+    
+    /* Rivers */
+    .river {
+      position: absolute;
+      background-color: #a7c4e2;
+      opacity: 0.5;
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    
+    /* State borders */
+    .border {
+      position: absolute;
+      border-top: 1px dashed #bbb;
+      width: 100%;
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<div id="map-container">
+  <div id="flight-map">
+    <!-- Map features will be added here -->
+  </div>
+</div>
+
+<script>
+// Map configuration
+const MAP_WIDTH = 1000;
+const MAP_HEIGHT = 600;
+const MAP_BOUNDS = {
+  west: -100.0,
+  east: -80.0,
+  south: 35.0,
+  north: 45.0
+};
+
+// Track animation state
+let flightData = [];
+let planeDivs = {};
+let pathCanvases = {};
+let animationRunning = false;
+
+// Add some static map features
+function addMapFeatures() {
+  const map = document.getElementById('flight-map');
+  
+  // Add state borders (simple dashed lines)
+  const borders = [
+    { lat: 41.5, label: "Iowa/Missouri Border" },
+    { lat: 40.0, label: "Kansas/Nebraska Border" },
+    { lat: 37.0, label: "Oklahoma/Kansas Border" }
+  ];
+  
+  borders.forEach(border => {
+    const y = convertLatToY(border.lat);
+    const borderDiv = document.createElement('div');
+    borderDiv.className = 'border';
+    borderDiv.style.top = y + 'px';
+    map.appendChild(borderDiv);
+  });
+  
+  // Add city labels
+  const cities = [
+    { name: "Lincoln", lat: 40.8, lon: -96.7 },
+    { name: "Omaha", lat: 41.3, lon: -96.0 },
+    { name: "Kansas City", lat: 39.1, lon: -94.6 },
+    { name: "Topeka", lat: 39.0, lon: -95.7 },
+    { name: "North Platte", lat: 41.1, lon: -100.8 },
+    { name: "Salina", lat: 38.8, lon: -97.6 },
+    { name: "Saint Joseph", lat: 39.8, lon: -94.8 },
+    { name: "Norfolk", lat: 42.0, lon: -97.4 }
+  ];
+  
+  cities.forEach(city => {
+    const x = convertLonToX(city.lon);
+    const y = convertLatToY(city.lat);
+    
+    const cityDiv = document.createElement('div');
+    cityDiv.className = 'map-feature';
+    cityDiv.textContent = city.name;
+    cityDiv.style.left = (x + 5) + 'px';
+    cityDiv.style.top = y + 'px';
+    map.appendChild(cityDiv);
+  });
+  
+  // Add simple rivers (blue dots)
+  const rivers = [
+    { lat: 41.5, lon: -96.5, size: 15 },
+    { lat: 39.5, lon: -95.0, size: 20 },
+    { lat: 40.2, lon: -98.5, size: 12 },
+    { lat: 38.0, lon: -97.0, size: 18 },
+    { lat: 42.0, lon: -97.0, size: 15 },
+    { lat: 39.0, lon: -96.0, size: 25 },
+    { lat: 38.5, lon: -99.5, size: 15 },
+    { lat: 41.2, lon: -95.8, size: 20 },
+    { lat: 37.8, lon: -93.5, size: 15 }
+  ];
+  
+  rivers.forEach(river => {
+    const x = convertLonToX(river.lon);
+    const y = convertLatToY(river.lat);
+    
+    const riverDiv = document.createElement('div');
+    riverDiv.className = 'river';
+    riverDiv.style.left = (x - river.size/2) + 'px';
+    riverDiv.style.top = (y - river.size/2) + 'px';
+    riverDiv.style.width = river.size + 'px';
+    riverDiv.style.height = river.size + 'px';
+    map.appendChild(riverDiv);
+  });
+  
+  // Add "United States" label
+  const usLabelDiv = document.createElement('div');
+  usLabelDiv.className = 'map-feature';
+  usLabelDiv.textContent = "United States";
+  usLabelDiv.style.left = '420px';
+  usLabelDiv.style.top = '350px';
+  usLabelDiv.style.fontSize = '16px';
+  usLabelDiv.style.color = '#999';
+  map.appendChild(usLabelDiv);
+}
+
+// Convert latitude to Y coordinate
+function convertLatToY(lat) {
+  const latRange = MAP_BOUNDS.north - MAP_BOUNDS.south;
+  const normalizedLat = (MAP_BOUNDS.north - lat) / latRange;
+  return normalizedLat * MAP_HEIGHT;
+}
+
+// Convert longitude to X coordinate
+function convertLonToX(lon) {
+  const lonRange = MAP_BOUNDS.east - MAP_BOUNDS.west;
+  const normalizedLon = (lon - MAP_BOUNDS.west) / lonRange;
+  return normalizedLon * MAP_WIDTH;
+}
+
+// Convert coordinates to pixel positions
+function coordsToPixels(lat, lon) {
+  return {
+    x: convertLonToX(lon),
+    y: convertLatToY(lat)
+  };
+}
+
+// Generate random flight data (120 flights across US central area)
+function generateFlights() {
+  const flights = [];
+  const numFlights = 120;
+  
+  // Airlines codes
+  const airlines = ['AA', 'UA', 'DL', 'WN', 'F9', 'AS', 'NK', 'B6'];
+  
+  // City pairs
+  const cities = [
+    { name: "Chicago", lat: 41.9, lon: -87.6 },
+    { name: "Atlanta", lat: 33.7, lon: -84.4 },
+    { name: "Denver", lat: 39.7, lon: -104.9 },
+    { name: "Dallas", lat: 32.8, lon: -96.8 },
+    { name: "Houston", lat: 29.8, lon: -95.4 },
+    { name: "Phoenix", lat: 33.4, lon: -112.0 },
+    { name: "Los Angeles", lat: 34.0, lon: -118.2 },
+    { name: "San Francisco", lat: 37.8, lon: -122.4 },
+    { name: "Seattle", lat: 47.6, lon: -122.3 },
+    { name: "Minneapolis", lat: 44.9, lon: -93.3 },
+    { name: "Detroit", lat: 42.3, lon: -83.0 },
+    { name: "Boston", lat: 42.4, lon: -71.0 },
+    { name: "New York", lat: 40.7, lon: -74.0 },
+    { name: "Philadelphia", lat: 39.9, lon: -75.2 },
+    { name: "Washington DC", lat: 38.9, lon: -77.0 },
+    { name: "Charlotte", lat: 35.2, lon: -80.8 },
+    { name: "Miami", lat: 25.8, lon: -80.2 },
+    { name: "Nashville", lat: 36.2, lon: -86.8 },
+    { name: "St. Louis", lat: 38.6, lon: -90.2 },
+    { name: "Kansas City", lat: 39.1, lon: -94.6 },
+    { name: "Oklahoma City", lat: 35.5, lon: -97.5 },
+    { name: "Indianapolis", lat: 39.8, lon: -86.2 },
+    { name: "Cincinnati", lat: 39.1, lon: -84.5 },
+    { name: "Memphis", lat: 35.1, lon: -90.0 },
+    { name: "New Orleans", lat: 30.0, lon: -90.0 },
+    { name: "Buffalo", lat: 42.9, lon: -78.9 },
+    { name: "Pittsburgh", lat: 40.4, lon: -80.0 },
+    { name: "Richmond", lat: 37.5, lon: -77.5 },
+    { name: "Toronto", lat: 43.7, lon: -79.4 },
+    { name: "Mexico City", lat: 19.4, lon: -99.1 }
+  ];
+  
+  // Waypoints across central US to ensure planes cross the visible map area
+  const waypoints = [];
+  for (let lat = 35; lat <= 45; lat += 1) {
+    for (let lon = -100; lon <= -80; lon += 2) {
+      waypoints.push({ lat, lon });
+    }
+  }
+  
+  for (let i = 0; i < numFlights; i++) {
+    // Pick random origin and destination
+    const origin = cities[Math.floor(Math.random() * cities.length)];
+    let destination;
+    do {
+      destination = cities[Math.floor(Math.random() * cities.length)];
+    } while (destination === origin);
+    
+    // Choose random waypoints to ensure flight crosses the map
+    const waypoint1 = waypoints[Math.floor(Math.random() * waypoints.length)];
+    const waypoint2 = waypoints[Math.floor(Math.random() * waypoints.length)];
+    
+    // Create flight path with curved trajectory
+    const pathPoints = [];
+    const numPoints = 100;
+    
+    // Generate a smooth path with small variations
+    for (let j = 0; j < numPoints; j++) {
+      const t = j / (numPoints - 1);
+      
+      // Create curved path using bezier-like blending
+      const u = t * t * (3 - 2 * t); // Smoothstep for nicer curves
+      
+      // Blend between origin, waypoints, and destination
+      let lat, lon;
+      if (t < 0.33) {
+        // First third: origin to waypoint1
+        const segment_t = t / 0.33;
+        lat = origin.lat + (waypoint1.lat - origin.lat) * segment_t;
+        lon = origin.lon + (waypoint1.lon - origin.lon) * segment_t;
+      } else if (t < 0.66) {
+        // Middle third: waypoint1 to waypoint2
+        const segment_t = (t - 0.33) / 0.33;
+        lat = waypoint1.lat + (waypoint2.lat - waypoint1.lat) * segment_t;
+        lon = waypoint1.lon + (waypoint2.lon - waypoint1.lon) * segment_t;
+      } else {
+        // Last third: waypoint2 to destination
+        const segment_t = (t - 0.66) / 0.34;
+        lat = waypoint2.lat + (destination.lat - waypoint2.lat) * segment_t;
+        lon = waypoint2.lon + (destination.lon - waypoint2.lon) * segment_t;
+      }
+      
+      // Add small random variations for more natural paths
+      lat += (Math.random() - 0.5) * 0.2;
+      lon += (Math.random() - 0.5) * 0.2;
+      
+      // Calculate angle (heading)
+      const angle = (j > 0) ? 
+        Math.atan2(lon - pathPoints[j-1].lon, lat - pathPoints[j-1].lat) * (180 / Math.PI) : 
+        0;
+        
+      pathPoints.push({ 
+        lat, 
+        lon, 
+        angle 
+      });
+    }
+    
+    // Create flight object
+    const airline = airlines[Math.floor(Math.random() * airlines.length)];
+    const flightNumber = Math.floor(Math.random() * 9000) + 1000; // 1000-9999
+    
+    flights.push({
+      id: `flight-${i}`,
+      callsign: `${airline}${flightNumber}`,
+      origin: origin.name,
+      destination: destination.name,
+      path: pathPoints,
+      color: getRandomColor(i),
+      progress: Math.random() // Random initial position
+    });
+  }
+  
+  return flights;
+}
+
+// Get a random pastel color
+function getRandomColor(index) {
+  const colors = [
+    '#FF9999', '#99FF99', '#9999FF', '#FFFF99', 
+    '#FF99FF', '#99FFFF', '#FFCC99', '#CC99FF'
+  ];
+  return colors[index % colors.length];
+}
+
+// Create a plane element
+function createPlane(flight) {
+  const map = document.getElementById('flight-map');
+  
+  // Create plane element
+  const plane = document.createElement('div');
+  plane.id = flight.id;
+  plane.className = 'plane';
+  plane.innerHTML = '✈';
+  plane.style.transform = `rotate(${flight.path[0].angle}deg)`;
+  
+  // Position at initial point
+  const startPoint = flight.path[0];
+  const pixelPos = coordsToPixels(startPoint.lat, startPoint.lon);
+  plane.style.left = pixelPos.x + 'px';
+  plane.style.top = pixelPos.y + 'px';
+  
+  map.appendChild(plane);
+  return plane;
+}
+
+// Create a canvas for drawing the flight path
+function createPathCanvas(flight) {
+  const map = document.getElementById('flight-map');
+  
+  // Create canvas for the flight path
+  const canvas = document.createElement('canvas');
+  canvas.width = MAP_WIDTH;
+  canvas.height = MAP_HEIGHT;
+  canvas.className = 'path';
+  canvas.id = `path-${flight.id}`;
+  
+  map.appendChild(canvas);
+  return canvas;
+}
+
+// Draw the flight path with trailing effect
+function drawFlightPath(canvas, flight, progress) {
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // Calculate the visible portion of the path (trailing effect)
+  const trailLength = 0.12; // How much of the path to show behind the plane
+  const startProgress = Math.max(0, progress - trailLength);
+  
+  // Find the start and end indices in the path array
+  const startIdx = Math.floor(startProgress * (flight.path.length - 1));
+  const endIdx = Math.floor(progress * (flight.path.length - 1));
+  
+  if (endIdx <= startIdx) return;
+  
+  // Draw the path as a dotted line
+  ctx.beginPath();
+  ctx.strokeStyle = flight.color;
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([3, 7]); // Dotted line
+  
+  // Start point
+  const startPoint = flight.path[startIdx];
+  const startPixels = coordsToPixels(startPoint.lat, startPoint.lon);
+  ctx.moveTo(startPixels.x, startPixels.y);
+  
+  // Draw line through all points in between
+  for (let i = startIdx + 1; i <= endIdx; i++) {
+    const point = flight.path[i];
+    const pixels = coordsToPixels(point.lat, point.lon);
+    ctx.lineTo(pixels.x, pixels.y);
+  }
+  
+  ctx.stroke();
+}
+
+// Update the position of a plane
+function updatePlanePosition(plane, flight, progress) {
+  // Find the point along the path
+  const idx = Math.floor(progress * (flight.path.length - 1));
+  const nextIdx = Math.min(idx + 1, flight.path.length - 1);
+  
+  // Linear interpolation between points
+  const t = (progress * (flight.path.length - 1)) - idx;
+  
+  // Get the current and next points
+  const currentPoint = flight.path[idx];
+  const nextPoint = flight.path[nextIdx];
+  
+  // Interpolate position
+  const lat = currentPoint.lat + (nextPoint.lat - currentPoint.lat) * t;
+  const lon = currentPoint.lon + (nextPoint.lon - currentPoint.lon) * t;
+  
+  // Calculate angle (heading) - interpolate for smooth rotation
+  const angleCurrent = currentPoint.angle;
+  let angleNext = nextPoint.angle;
+  
+  // Handle angle wraparound (e.g., 350° to 10°)
+  const angleDiff = angleNext - angleCurrent;
+  if (angleDiff > 180) angleNext -= 360;
+  if (angleDiff < -180) angleNext += 360;
+  
+  const angle = angleCurrent + (angleNext - angleCurrent) * t;
+  
+  // Convert to screen coordinates
+  const pixels = coordsToPixels(lat, lon);
+  
+  // Update plane position and rotation
+  plane.style.left = pixels.x + 'px';
+  plane.style.top = pixels.y + 'px';
+  plane.style.transform = `rotate(${angle}deg)`;
+}
+
+// Animation loop
+function animateFlights() {
+  // Animation duration in seconds
+  const cycleDuration = 600; // 10 minutes
+  
+  // Calculate current progress
+  const now = Date.now() / 1000; // Current time in seconds
+  const globalProgress = (now % cycleDuration) / cycleDuration;
+  
+  // Update each flight
+  flightData.forEach(flight => {
+    // Each flight has a slight offset for variety
+    const flightProgress = (globalProgress + flight.progress) % 1;
+    
+    // Get the plane and path elements
+    const plane = planeDivs[flight.id];
+    const pathCanvas = pathCanvases[flight.id];
+    
+    // Update plane position
+    updatePlanePosition(plane, flight, flightProgress);
+    
+    // Update flight path
+    drawFlightPath(pathCanvas, flight, flightProgress);
+  });
+  
+  // Continue animation
+  requestAnimationFrame(animateFlights);
+}
+
+// Initialize the map and flights
+function initializeMap() {
+  // Add map features (borders, cities, etc.)
+  addMapFeatures();
+  
+  // Generate flight data
+  flightData = generateFlights();
+  
+  // Create plane and path elements for each flight
+  flightData.forEach(flight => {
+    // Create and store plane element
+    planeDivs[flight.id] = createPlane(flight);
+    
+    // Create and store path canvas
+    pathCanvases[flight.id] = createPathCanvas(flight);
+  });
+  
+  // Start animation
+  if (!animationRunning) {
+    animationRunning = true;
+    animateFlights();
+  }
+}
+
+// Initialize when the page loads
+window.addEventListener('load', initializeMap);
+</script>
+</body>
+</html> 
