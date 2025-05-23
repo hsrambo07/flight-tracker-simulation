@@ -996,8 +996,8 @@ function createPlane(flight) {
     // Highlight this plane
     plane.classList.add('highlighted');
     
-    // DO NOT create pulsing highlight automatically - causes white markers
-    // createPulsingHighlight(plane, flight);
+    // Create pulsing highlight effect
+    createPulsingHighlight(plane, flight);
     
     // Find and highlight the corresponding flight card
     const flightCard = document.getElementById(`card-${flight.id}`);
@@ -1289,8 +1289,8 @@ function highlightPlane(flightId) {
     // Find the flight object for color information
     const flight = flightData.find(f => f.id === flightId);
     
-    // DO NOT create pulsing highlight - causes unwanted white markers
-    // createPulsingHighlight(plane, flight);
+    // Create a pulsing highlight effect
+    createPulsingHighlight(plane, flight);
   }
 }
 
@@ -1303,8 +1303,8 @@ function createPulsingHighlight(plane, flight) {
   }
   
   // Extract RGB values from flight color for the highlight
-  let highlightColor = 'rgba(0, 0, 0, 0)'; // TRANSPARENT fallback instead of white
-  let shadowColor = 'rgba(0, 0, 0, 0)'; // TRANSPARENT fallback shadow
+  let highlightColor = 'rgba(255, 255, 255, 0.7)'; // Fallback to white
+  let shadowColor = 'rgba(255, 255, 255, 0)'; // Fallback shadow
   
   if (flight && flight.color) {
     const colorMatch = flight.color.match(/rgba?\(([^)]+)\)/);
@@ -1727,7 +1727,7 @@ function animateFlights() {
       }
     }
     
-    // REALISTIC LANDED FLIGHT MANAGEMENT
+    // If flight has completed and recycling is needed
     if (adjustedProgress >= 1) {
       // Check if this flight has already been processed for completion
       if (!completedFlightIds.has(flight.id)) {
@@ -1735,38 +1735,42 @@ function animateFlights() {
         return;
       }
       
-      // For flights that have been processed, decide what happens next
-      const flightFate = Math.random();
-      
+      // For flights that have been processed, check if they should be recycled or removed
       if (flight.isReturnFlight) {
-        // Return flights - 70% chance to be removed, 30% to recycle as new flight
-        if (flightFate < 0.7) {
-          // REMOVE this return flight from the system
-          removeFlightFromSystem(flight);
-          console.log(`🗑️ Return flight ${flight.callsign} removed from system`);
-          return;
-        } else {
-          // Recycle as new flight with new random route
-          console.log(`♻️ Return flight ${flight.callsign} recycling as new flight`);
-          recycleFlightAsNew(flight, now);
+        // Return flights don't spawn new returns - just recycle normally
+        flight.progress = getRandomFlightProgress();
+        flight.lastProgress = undefined;
+        flight.actualStartTime = now + Math.random() * 60000; // Start again after 0-60 seconds
+        
+        // Recalculate realistic duration
+        if (flight.distanceNM && flight.cruiseSpeedKts) {
+          const flightTimeHours = (flight.distanceNM / flight.cruiseSpeedKts) * 1.2;
+          flight.plannedDuration = Math.max(300000, flightTimeHours * 3600 * 1000);
         }
+        
+        flight.windFactor = (Math.random() * 0.05) - 0.025;
+        flight.turbulence = Math.random() * 0.05;
+        flight.lastHeadingUpdateTime = 0;
       } else {
-        // Original flights - 40% remove, 30% return flight (handled elsewhere), 30% recycle
-        if (flightFate < 0.4) {
-          // REMOVE this flight from the system
-          removeFlightFromSystem(flight);
-          console.log(`🗑️ Flight ${flight.callsign} removed from system after landing`);
-          return;
-        } else if (flightFate < 0.7) {
-          // Will become return flight (handled by processCompletedFlights)
-          // Keep flight in limbo until return flight is created
-          flight.actualStartTime = now + 999999999; // Far future to keep it invisible
-          return;
+        // Original flights that have been processed - recycle with new random factors
+        flight.progress = getRandomFlightProgress();
+        flight.lastProgress = undefined;
+        flight.actualStartTime = now + Math.random() * 30000; // Start again after 0-30 seconds
+        
+        // Remove from completed set so it can potentially generate returns again
+        completedFlightIds.delete(flight.id);
+        
+        // Recalculate realistic duration
+        if (flight.distanceNM && flight.cruiseSpeedKts) {
+          const flightTimeHours = (flight.distanceNM / flight.cruiseSpeedKts) * 1.2;
+          flight.plannedDuration = Math.max(300000, flightTimeHours * 3600 * 1000);
         } else {
-          // Recycle as new flight with new random route
-          console.log(`♻️ Flight ${flight.callsign} recycling as new flight`);
-          recycleFlightAsNew(flight, now);
+          flight.plannedDuration = 600000 + Math.random() * 900000;
         }
+        
+        flight.windFactor = (Math.random() * 0.05) - 0.025;
+        flight.turbulence = Math.random() * 0.05;
+        flight.lastHeadingUpdateTime = 0;
       }
     }
   });
@@ -1945,27 +1949,12 @@ function calculateFlightInfo(flight, progress, currentPoint, nextPoint, segmentP
     groundSpeed = Math.max(150, Math.min(groundSpeed, 550));
   }
 
-  // Calculate proper flight phase based on progress and altitude
-  let flightPhase = "En Route";
-  if (progress < 0.15) {
-    flightPhase = "Climbing";
-  } else if (progress > 0.85) {
-    if (altitude <= destinationElevation + 500) {
-      flightPhase = "Landing";
-    } else {
-      flightPhase = "Descending";
-    }
-  } else {
-    flightPhase = "Cruise";
-  }
-
   return { 
     altitude: Math.round(altitude),
     groundSpeed: Math.round(groundSpeed),
     heading,
     verticalSpeed: calculateVerticalSpeed(progress, altitude, flight),
-    turbulence: flight.turbulence > 0.15 ? "Moderate" : flight.turbulence > 0.05 ? "Light" : "Smooth",
-    flightPhase: flightPhase
+    turbulence: flight.turbulence > 0.15 ? "Moderate" : flight.turbulence > 0.05 ? "Light" : "Smooth"
   };
 }
 
@@ -2208,6 +2197,8 @@ function showTooltip(event) {
   
   // Use phase from flightInfo calculation
   let phaseText = flightInfo.flightPhase || "En Route";
+  if (progress < 0.15) phaseText = "Climbing";
+  else if (progress > 0.85) phaseText = "Descending";
   
   // Simple classic layout - more compact and clearer
   tooltip.innerHTML = `
@@ -2315,6 +2306,8 @@ function showTooltipForMarker(marker, flight) {
   
   // Use phase from flightInfo calculation
   let phaseText = flightInfo.flightPhase || "En Route";
+  if (progress < 0.15) phaseText = "Climbing";
+  else if (progress > 0.85) phaseText = "Descending";
   
   // Simple classic layout - more compact and clearer
   tooltip.innerHTML = `
@@ -3212,6 +3205,8 @@ function updateFollowingDetailView(flight, progress, flightInfo) {
   
   // Update flight phase
   let phaseText = "En Route";
+  if (progress < 0.15) phaseText = "Climbing";
+  else if (progress > 0.85) phaseText = "Descending";
   
   const phaseElement = detailView.querySelector('span[style*="rgba(255,255,255,0.5)"]');
   if (phaseElement) {
@@ -3482,124 +3477,4 @@ function calculateRemainingTime(flight, progress) {
   } else {
     return `${hours}hr, ${minutes} min remaining`;
   }
-}
-
-// FLIGHT LIFECYCLE MANAGEMENT FUNCTIONS
-
-// Remove a flight completely from the system
-function removeFlightFromSystem(flight) {
-  // Remove from main flight data array
-  const index = flightData.indexOf(flight);
-  if (index > -1) {
-    flightData.splice(index, 1);
-  }
-  
-  // Clean up DOM elements
-  const plane = planeDivs[flight.id];
-  if (plane && plane.parentNode) {
-    plane.parentNode.removeChild(plane);
-  }
-  delete planeDivs[flight.id];
-  
-  // Clean up Leaflet markers
-  const leafletMarker = leafletMarkers[flight.id];
-  if (leafletMarker && leafletMap) {
-    leafletMap.removeLayer(leafletMarker);
-  }
-  delete leafletMarkers[flight.id];
-  
-  // Clean up path canvases
-  const pathCanvas = pathCanvases[flight.id];
-  if (pathCanvas && pathCanvas.parentNode) {
-    pathCanvas.parentNode.removeChild(pathCanvas);
-  }
-  delete pathCanvases[flight.id];
-  
-  // Remove from completed flights tracking
-  completedFlightIds.delete(flight.id);
-  
-  console.log(`✈️ Removed flight ${flight.callsign} (${flight.id}) from system`);
-}
-
-// Recycle a flight with completely new random route
-function recycleFlightAsNew(flight, now) {
-  // Generate new random route - reuse the route generation logic
-  const airlines = ['AI', 'IX', 'SG', 'UK', 'I5', 'G8', '6E', 'QP'];
-  
-  const majorHubs = [
-    { code: "BLR", name: "Bangalore", lat: 13.1989, lon: 77.7068 },
-    { code: "DEL", name: "Delhi", lat: 28.5562, lon: 77.1000 },
-    { code: "BOM", name: "Mumbai", lat: 19.0896, lon: 72.8656 },
-    { code: "MAA", name: "Chennai", lat: 12.9941, lon: 80.1709 },
-    { code: "HYD", name: "Hyderabad", lat: 17.2403, lon: 78.4294 },
-    { code: "CCU", name: "Kolkata", lat: 22.6547, lon: 88.4467 }
-  ];
-  
-  const regionalAirports = [
-    { code: "CJB", name: "Coimbatore", lat: 11.0300, lon: 77.0434 },
-    { code: "COK", name: "Cochin", lat: 10.1518, lon: 76.3930 },
-    { code: "TRV", name: "Trivandrum", lat: 8.4833, lon: 76.9200 },
-    { code: "MYQ", name: "Mysore", lat: 12.2300, lon: 76.6560 },
-    { code: "PNQ", name: "Pune", lat: 18.5793, lon: 73.9089 },
-    { code: "GOI", name: "Goa", lat: 15.3808, lon: 73.8314 }
-  ];
-  
-  const allAirports = [...majorHubs, ...regionalAirports];
-  
-  // Pick random origin and destination
-  let origin = allAirports[Math.floor(Math.random() * allAirports.length)];
-  let destination;
-  do {
-    destination = allAirports[Math.floor(Math.random() * allAirports.length)];
-  } while (destination.code === origin.code);
-  
-  // Generate new airline and flight number
-  const airline = airlines[Math.floor(Math.random() * airlines.length)];
-  const flightNumber = Math.floor(Math.random() * 9000) + 1000;
-  
-  // Create new flight using the createFlight function
-  const newFlightData = createFlight(origin, destination, flight.color, flight.id, airline, flightNumber);
-  
-  // Update existing flight object with new data
-  Object.assign(flight, newFlightData);
-  
-  // Reset tracking
-  flight.progress = getRandomFlightProgress();
-  flight.lastProgress = undefined;
-  flight.actualStartTime = now + Math.random() * 120000; // Start in 0-2 minutes
-  flight.isReturnFlight = false; // Reset return flight status
-  
-  // Remove from completed tracking
-  completedFlightIds.delete(flight.id);
-  
-  // Update callsign display
-  const plane = planeDivs[flight.id];
-  if (plane) {
-    plane.dataset.callsign = flight.callsign;
-    plane.dataset.origin = flight.origin;
-    plane.dataset.destination = flight.destination;
-  }
-  
-  // Update Leaflet marker
-  const leafletMarker = leafletMarkers[flight.id];
-  if (leafletMarker) {
-    leafletMarker.flightData = {
-      id: flight.id,
-      callsign: flight.callsign,
-      origin: flight.origin,
-      destination: flight.destination
-    };
-  }
-  
-  console.log(`♻️ Recycled flight as ${flight.callsign}: ${flight.origin} → ${flight.destination}`);
-}
-
-// Create animated radar waves around an aircraft
-function createRadarWaves(plane, flight) {
-  // DISABLED - No radar waves should appear unless explicitly following a flight
-  return;
-  
-  // Only create radar waves for visible flights to improve performance
-  const isVisible = plane.style.display !== 'none';
-  if (!isVisible) return;
 }

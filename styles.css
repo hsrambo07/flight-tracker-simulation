@@ -1,10 +1,14 @@
-@font-face {
+/* Import reliable web fonts */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600;700&display=swap');
+
+/* Removed external font that was causing 404 errors */
+/* @font-face {
   font-family: 'Perfectly Nineties';
   src: url('https://cdn.jsdelivr.net/gh/sixheads/perfectly-nineties/fonts/PerfectlyNineties-Regular.woff2') format('woff2');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
-}
+} */
 
 /* Base styles */
 *, *::before, *::after {
@@ -56,7 +60,56 @@ body, html {
 #flight-map {
   width: 100%;
   height: 100%;
-  position: relative;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 10;
+  pointer-events: none; /* Allow clicks to pass through to the map below */
+}
+
+/* Ensure planes can still be clicked */
+.plane {
+  position: absolute;
+  opacity: 0.9;
+  font-size: 22px;
+  font-family: monospace;
+  color: #3239be;
+  text-shadow: 0 0 2px #fff;
+  transform-origin: 50% 50%;
+  pointer-events: auto;
+  cursor: pointer;
+  transition: all 0.2s ease, opacity 0.5s ease;
+  z-index: 10;
+}
+
+.plane.highlighted {
+  opacity: 1;
+  color: #ffffff;
+  z-index: 100;
+  font-size: 26px;
+  filter: drop-shadow(0px 6.493px 6.493px rgba(179, 156, 137, 0.25));
+}
+
+/* Leaflet map styles */
+#leaflet-map {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 5;
+  background: transparent;
+}
+
+/* Make the leaflet map subtle */
+.leaflet-tile-pane {
+  opacity: 0.4; /* Adjust this value to make the map more/less visible */
+  filter: saturate(0.7) brightness(1.2);
+}
+
+.leaflet-control-attribution {
+  font-size: 8px;
+  opacity: 0.5;
 }
 
 /* Sidebar styles */
@@ -98,8 +151,8 @@ body, html {
 .sidebar-header {
   font-size: 28px;
   margin-bottom: 24px;
-  font-family: 'Perfectly Nineties', Arial, sans-serif;
-  font-weight: normal;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-weight: 700;
   white-space: nowrap; /* Prevent header from wrapping in collapsed state */
 }
 
@@ -120,7 +173,7 @@ body, html {
 }
 
 .flights-container::-webkit-scrollbar-thumb {
-  background-color: rgba(255, 255, 255, 0.2);
+  background-color: rgba(128, 128, 128, 0.3); /* Gray instead of white */
   border-radius: 4px;
 }
 
@@ -142,8 +195,24 @@ body, html {
 
 .flight-card.selected {
   background-color: #3a3633;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.2);
   transform: translateX(4px);
+}
+
+.flight-card.following {
+  background-color: #4a4633;
+  box-shadow: 0 0 0 2px rgba(255, 215, 0, 0.4);
+  border-left: 4px solid #ffd700;
+}
+
+.flight-card.following::after {
+  content: "FOLLOWING";
+  position: absolute;
+  top: 4px;
+  right: 8px;
+  font-size: 8px;
+  color: #ffd700;
+  font-weight: bold;
+  letter-spacing: 0.5px;
 }
 
 .flight-card-content {
@@ -163,7 +232,7 @@ body, html {
 }
 
 .flight-number {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   font-weight: 700;
   font-size: 14px;
   line-height: 1.35;
@@ -171,7 +240,7 @@ body, html {
 }
 
 .flight-route {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   font-weight: 400;
   font-size: 12px;
   line-height: 1.35;
@@ -182,7 +251,7 @@ body, html {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   font-weight: 400;
   font-size: 12px;
   line-height: 1.35;
@@ -220,9 +289,10 @@ body, html {
 }
 
 .app-title {
-  font-family: 'Perfectly Nineties', Arial, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
   font-size: 14px;
-  letter-spacing: 1%;
+  font-weight: 600;
+  letter-spacing: 0.5px;
   color: #0E0F11;
 }
 
@@ -282,27 +352,38 @@ body, html {
   fill: #A5A7AB;
 }
 
-/* Plane styles */
-.plane {
-  position: absolute;
-  opacity: 0.7;
-  font-size: 20px;
+/* Leaflet marker styles for planes */
+.plane-marker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Hide default Leaflet marker styling */
+.plane-marker .leaflet-marker-icon {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.plane-icon {
   font-family: monospace;
+  font-size: 22px;
   color: #3239be;
   text-shadow: 0 0 2px #fff;
   transform-origin: 50% 50%;
-  pointer-events: auto;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  z-index: 10;
+  transition: transform 0.4s linear; /* Smooth rotation transition */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
 }
 
-.plane.highlighted {
-  opacity: 1;
-  color: #ffffff;
-  text-shadow: 0 0 5px rgba(255, 255, 255, 1);
-  z-index: 100;
-  font-size: 24px;
+.plane-marker.highlighted .plane-icon {
+  color: #1b3ed8 !important;
+  font-size: 26px;
+  filter: drop-shadow(0px 6.493px 6.493px rgba(179, 156, 137, 0.25)) !important;
 }
 
 .path {
@@ -312,6 +393,7 @@ body, html {
   width: 100%;
   height: 100%;
   pointer-events: none;
+  transition: opacity 0.5s ease;
 }
 
 .map-feature {
@@ -346,6 +428,7 @@ body, html {
   background-color: rgba(0, 0, 0, 0.1);
   border: 1px solid #5362c2;
   pointer-events: none;
+  transition: opacity 0.3s ease;
 }
 
 .airport-label {
@@ -355,8 +438,19 @@ body, html {
   color: #2f3eb1;
   margin-left: 10px;
   margin-top: 5px;
-  text-shadow: 0 0 2px white;
   pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+/* Hide ALL map clutter when following a flight for clean view */
+body.following-mode .airport,
+body.following-mode .airport-label,
+body.following-mode .map-feature,
+body.following-mode .river,
+body.following-mode .border {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  transition: opacity 0.3s ease;
 }
 
 .tooltip {
@@ -414,7 +508,201 @@ body, html {
 }
 
 .page-indicator {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
   font-size: 14px;
   font-weight: bold;
+}
+
+/* Loading indicator styles */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(32, 28, 26, 0.9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  opacity: 1;
+  transition: opacity 0.5s ease;
+}
+
+.loading-overlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.loading-content {
+  text-align: center;
+  color: #fff;
+}
+
+.loading-title {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 32px;
+  font-weight: 700;
+  margin-bottom: 16px;
+  opacity: 0.9;
+}
+
+.loading-subtitle {
+  font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-size: 14px;
+  opacity: 0.7;
+  margin-bottom: 24px;
+}
+
+.loading-progress {
+  width: 200px;
+  height: 2px;
+  background-color: rgba(128, 128, 128, 0.2); /* Gray instead of white */
+  border-radius: 1px;
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.loading-progress-bar {
+  background: linear-gradient(to right, #418461, #2e7e52);
+  height: 100%;
+  border-radius: inherit;
+  transition: width 0.5s ease;
+}
+
+/* ========================================
+   SOPHISTICATED WIDGET STYLES
+   ======================================== */
+
+/* SparkLine widget styles */
+.spark-line-container {
+  background: rgba(16, 14, 13, 0.9);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 4px 0;
+}
+
+.spark-line-canvas {
+  display: block;
+  width: 100%;
+  height: 60px;
+  border-radius: 2px;
+}
+
+/* Mini-map widget styles */
+.mini-map-container {
+  background: rgba(16, 14, 13, 0.9);
+  border-radius: 4px;
+  padding: 8px;
+  margin: 4px 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mini-plane-marker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Drop point styles */
+.drop-point-btn {
+  transition: all 0.2s ease;
+}
+
+.drop-point-btn:hover {
+  background: #2e7e52 !important;
+  color: #fff !important;
+}
+
+.drop-point-marker {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.drop-point-popup .leaflet-popup-content-wrapper {
+  background: rgba(16, 14, 13, 0.95);
+  color: #fff;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.drop-point-popup .leaflet-popup-tip {
+  background: rgba(16, 14, 13, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Enhanced tooltip styles for airport proximity */
+.tooltip {
+  background-color: rgba(16, 14, 13, 0.95) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(8px);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+/* Stop Following Button */
+.stop-following-button {
+  display: none; /* Hidden by default */
+  background: rgba(252, 179, 179, 0.17) !important;
+  border: 1px solid rgba(242, 113, 113, 0.2) !important;
+  border-radius: 2.66px !important;
+  padding: 8px !important;
+  margin: 16px 0 !important;
+  text-align: center !important;
+  font-family: 'Instrument Sans', sans-serif !important;
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  line-height: 1.35em !important;
+  letter-spacing: 0.257% !important;
+  color: #F27171 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  user-select: none;
+}
+
+.stop-following-button:hover {
+  background: rgba(252, 179, 179, 0.25) !important;
+  border-color: rgba(242, 113, 113, 0.3) !important;
+}
+
+.stop-following-button:active {
+  background: rgba(252, 179, 179, 0.35) !important;
+  transform: translateY(1px);
+}
+
+/* RADAR WAVE ANIMATION FOR AIRCRAFT */
+@keyframes radar-pulse {
+  0% {
+    width: 10px;
+    height: 10px;
+    opacity: 1;
+    border-color: rgba(66, 165, 245, 0.9);
+    box-shadow: 0 0 5px rgba(66, 165, 245, 0.6);
+  }
+  50% {
+    width: 60px;
+    height: 60px;
+    opacity: 0.6;
+    border-color: rgba(66, 165, 245, 0.5);
+    box-shadow: 0 0 10px rgba(66, 165, 245, 0.3);
+  }
+  100% {
+    width: 100px;
+    height: 100px;
+    opacity: 0;
+    border-color: rgba(66, 165, 245, 0.1);
+    box-shadow: 0 0 15px rgba(66, 165, 245, 0.1);
+  }
+}
+
+.radar-wave {
+  width: 10px;
+  height: 10px;
+  border: 2px solid rgba(66, 165, 245, 0.7);
+  border-radius: 50%;
+  position: absolute;
+  pointer-events: none;
+  z-index: 999;
+  box-shadow: 0 0 5px rgba(66, 165, 245, 0.4);
 } 

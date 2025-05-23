@@ -996,8 +996,8 @@ function createPlane(flight) {
     // Highlight this plane
     plane.classList.add('highlighted');
     
-    // DO NOT create pulsing highlight automatically - causes white markers
-    // createPulsingHighlight(plane, flight);
+    // Create pulsing highlight effect
+    createPulsingHighlight(plane, flight);
     
     // Find and highlight the corresponding flight card
     const flightCard = document.getElementById(`card-${flight.id}`);
@@ -1289,8 +1289,8 @@ function highlightPlane(flightId) {
     // Find the flight object for color information
     const flight = flightData.find(f => f.id === flightId);
     
-    // DO NOT create pulsing highlight - causes unwanted white markers
-    // createPulsingHighlight(plane, flight);
+    // Create a pulsing highlight effect
+    createPulsingHighlight(plane, flight);
   }
 }
 
@@ -1303,8 +1303,8 @@ function createPulsingHighlight(plane, flight) {
   }
   
   // Extract RGB values from flight color for the highlight
-  let highlightColor = 'rgba(0, 0, 0, 0)'; // TRANSPARENT fallback instead of white
-  let shadowColor = 'rgba(0, 0, 0, 0)'; // TRANSPARENT fallback shadow
+  let highlightColor = 'rgba(255, 255, 255, 0.7)'; // Fallback to white
+  let shadowColor = 'rgba(255, 255, 255, 0)'; // Fallback shadow
   
   if (flight && flight.color) {
     const colorMatch = flight.color.match(/rgba?\(([^)]+)\)/);
@@ -3592,14 +3592,4 @@ function recycleFlightAsNew(flight, now) {
   }
   
   console.log(`♻️ Recycled flight as ${flight.callsign}: ${flight.origin} → ${flight.destination}`);
-}
-
-// Create animated radar waves around an aircraft
-function createRadarWaves(plane, flight) {
-  // DISABLED - No radar waves should appear unless explicitly following a flight
-  return;
-  
-  // Only create radar waves for visible flights to improve performance
-  const isVisible = plane.style.display !== 'none';
-  if (!isVisible) return;
 }
