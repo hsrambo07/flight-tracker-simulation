@@ -1947,7 +1947,9 @@ function calculateFlightInfo(flight, progress, currentPoint, nextPoint, segmentP
 
   // Calculate proper flight phase based on progress and altitude
   let flightPhase = "En Route";
-  if (progress < 0.15) {
+  if (progress >= 1.0) {
+    flightPhase = "Landed";
+  } else if (progress < 0.15) {
     flightPhase = "Climbing";
   } else if (progress > 0.85) {
     if (altitude <= destinationElevation + 500) {
@@ -2665,11 +2667,17 @@ function showFollowingDetailView(flight) {
     flightsContainer.style.display = 'none';
   }
   
+  // Hide sidebar header
+  const sidebarHeader = document.querySelector('.sidebar-header');
+  if (sidebarHeader) {
+    sidebarHeader.style.display = 'none';
+  }
+  
   // Show and populate the following detail view
   const detailView = document.getElementById('following-detail-view');
   if (!detailView) return;
   
-  // Get current flight info
+  // Get current flight info with enhanced calculations
   const now = Date.now();
   const elapsedTime = now - flight.actualStartTime;
   const progress = Math.min(1, Math.max(0, elapsedTime / flight.plannedDuration));
@@ -2681,49 +2689,118 @@ function showFollowingDetailView(flight) {
   const nextPoint = flight.path[nextIndex];
   const segmentProgress = exactIndex - index;
   
+  // Enhanced flight info calculation
   const flightInfo = calculateFlightInfo(flight, progress, currentPoint, nextPoint, segmentProgress);
   
-  // Calculate correct flight phase based on progress
-  let phaseText = flightInfo.flightPhase || "En Route";
+  // Get current position for proximity detection
+  const currentLat = currentPoint.lat + (nextPoint.lat - currentPoint.lat) * segmentProgress;
+  const currentLon = currentPoint.lon + (nextPoint.lon - currentPoint.lon) * segmentProgress;
+  const currentPosition = { lat: currentLat, lon: currentLon };
   
-  // Calculate realistic duration
+  // ENHANCED FLIGHT PHASE DETECTION
+  let enhancedPhase = "En Route";
+  let phaseColor = "#4CAF50";
+  let phaseIcon = "✈︎";
+  
+  if (progress < 0.05) {
+    enhancedPhase = "Taxiing";
+    phaseColor = "#FF9800";
+    phaseIcon = "🛫";
+  } else if (progress < 0.15) {
+    enhancedPhase = "Climbing";
+    phaseColor = "#2196F3";
+    phaseIcon = "↗";
+  } else if (progress < 0.25) {
+    enhancedPhase = "Initial Cruise";
+    phaseColor = "#4CAF50";
+    phaseIcon = "→";
+  } else if (progress < 0.75) {
+    enhancedPhase = "Cruise";
+    phaseColor = "#4CAF50";
+    phaseIcon = "→";
+  } else if (progress < 0.85) {
+    enhancedPhase = "Descending";
+    phaseColor = "#FF9800";
+    phaseIcon = "↘";
+  } else if (progress < 0.95) {
+    enhancedPhase = "Approach";
+    phaseColor = "#FF5722";
+    phaseIcon = "🛬";
+  } else if (progress < 0.98) {
+    enhancedPhase = "Final Approach";
+    phaseColor = "#F44336";
+    phaseIcon = "⬇";
+  } else if (progress < 1.0) {
+    enhancedPhase = "Landing";
+    phaseColor = "#9C27B0";
+    phaseIcon = "🛬";
+  } else {
+    enhancedPhase = "Landed";
+    phaseColor = "#607D8B";
+    phaseIcon = "✓";
+  }
+  
+  // AIRPORT PROXIMITY DETECTION
+  const nearbyAirports = detectNearbyAirports(flight, currentPosition, 50);
+  
+  // WEATHER AND WIND EFFECTS
+  const weatherEffects = applyRealisticWeatherEffects(flight, currentPosition);
+  
+  // WIND INFORMATION
+  let windDirection = Math.round((Date.now() / 10000 + flight.seed * 3) % 360);
+  let windSpeed = Math.round(5 + Math.abs(weatherEffects.windEffect) * 100);
+  let windHeadingDiff = Math.abs(windDirection - flightInfo.heading);
+  if (windHeadingDiff > 180) windHeadingDiff = 360 - windHeadingDiff;
+  
+  let windType = "Tailwind";
+  let windColor = "#4CAF50";
+  if (windHeadingDiff < 30) {
+    windType = "Headwind";
+    windColor = "#FF5722";
+  } else if (windHeadingDiff > 150) {
+    windType = "Tailwind"; 
+    windColor = "#4CAF50";
+  } else {
+    windType = "Crosswind";
+    windColor = "#FF9800";
+  }
+  
+  // Calculate realistic flight duration
   const flightDuration = calculateFlightDuration(flight);
   
-  // Create the detailed view HTML matching Figma design EXACTLY
+  // Create the enhanced detailed view HTML
   detailView.innerHTML = `
     <!-- Mini Map Widget -->
     <div class="mini-map-container" style="margin-bottom: 16px;">
-      <div id="following-mini-map" style="height: 280px; border-radius: 8px; background: #4a5c52; position: relative; overflow: hidden;"></div>
+      <div id="following-mini-map" style="height: 240px; background: #4a5c52; position: relative; overflow: hidden;"></div>
     </div>
     
     <!-- Flight Details Section -->
     <div style="border-left: 3px solid ${flight.color}; padding-left: 12px; margin-bottom: 16px;">
       <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-        <h2 style="font-family: 'JetBrains Mono', monospace; font-size: 18px; font-weight: 500; margin: 0; color: #fff;">${flight.callsign}</h2>
-        <div style="display: flex; align-items: center; gap: 6px; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px;">
-          <div style="font-size: 12px; color: #fff;">✈︎</div>
-          <span style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 300; color: rgba(255,255,255,0.5);">${phaseText}</span>
+        <h2 style="font-family: 'Inter', sans-serif; font-size: 18px; font-weight: 500; margin: 0; color: #fff;">${flight.callsign}</h2>
+        <div style="display: flex; align-items: center; gap: 6px; background: ${phaseColor}20; border: 1px solid ${phaseColor}60; padding: 3px 8px; border-radius: 12px;">
+          <div style="font-size: 12px;">${phaseIcon}</div>
+          <span style="font-family: 'Inter', sans-serif; font-size: 11px; font-weight: 500; color: ${phaseColor};">${enhancedPhase}</span>
         </div>
       </div>
       
       <!-- Route Display -->
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <div style="text-align: left;">
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600; color: #fff;">${flight.origin}</div>
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.4);">Origin<br>Airport</div>
+          <div style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: #fff;">${flight.origin}</div>
+          <div style="font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(255,255,255,0.4);">Origin<br>Airport</div>
         </div>
         <div style="flex: 1; display: flex; align-items: center; justify-content: center; margin: 0 16px;">
-          <div style="width: 40px; height: 2px; background: rgba(255,255,255,0.3); position: relative; display: flex; align-items: center;">
+          <div style="width: 60px; height: 2px; background: rgba(255,255,255,0.3); position: relative; display: flex; align-items: center;">
             <div style="position: absolute; left: 0; width: 6px; height: 6px; border-radius: 50%; background: #fff;"></div>
             <div style="position: absolute; right: 0; width: 6px; height: 6px; border-radius: 50%; background: #fff;"></div>
-            <div style="position: absolute; left: 50%; transform: translateX(-50%); width: 2px; height: 2px; background: #fff; border-radius: 50%;"></div>
-            <div style="position: absolute; left: 25%; transform: translateX(-50%); width: 2px; height: 2px; background: #fff; border-radius: 50%;"></div>
-            <div style="position: absolute; left: 75%; transform: translateX(-50%); width: 2px; height: 2px; background: #fff; border-radius: 50%;"></div>
+            <div style="position: absolute; left: ${progress * 100}%; transform: translateX(-50%); width: 8px; height: 8px; background: ${flight.color}; border-radius: 50%; border: 2px solid #fff;"></div>
           </div>
         </div>
         <div style="text-align: right;">
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 16px; font-weight: 600; color: #fff;">${flight.destination}</div>
-          <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; color: rgba(255,255,255,0.4);">Destination<br>Airport</div>
+          <div style="font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600; color: #fff;">${flight.destination}</div>
+          <div style="font-family: 'Inter', sans-serif; font-size: 11px; color: rgba(255,255,255,0.4);">Destination<br>Airport</div>
         </div>
       </div>
     </div>
@@ -2731,42 +2808,85 @@ function showFollowingDetailView(flight) {
     <!-- Flight Data Grid -->
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px;">
       <div style="display: flex; justify-content: space-between;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #fff;">ALT:</span>
-        <span data-field="altitude" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.altitude.toLocaleString()} ft</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; color: #fff;">ALT:</span>
+        <span data-field="altitude" style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.altitude.toLocaleString()} ft</span>
       </div>
       <div style="display: flex; justify-content: space-between;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #fff;">SPD:</span>
-        <span data-field="speed" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.groundSpeed} kts</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; color: #fff;">SPD:</span>
+        <span data-field="speed" style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.groundSpeed} kts</span>
       </div>
       <div style="display: flex; justify-content: space-between;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #fff;">HDG:</span>
-        <span data-field="heading" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.heading.toString().padStart(3, '0')}°</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; color: #fff;">HDG:</span>
+        <span data-field="heading" style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.heading.toString().padStart(3, '0')}°</span>
       </div>
       <div style="display: flex; justify-content: space-between;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #fff;">V/S:</span>
-        <span data-field="vertical-speed" style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.verticalSpeed >= 0 ? '+' : ''}${flightInfo.verticalSpeed} fpm</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; color: #fff;">V/S:</span>
+        <span data-field="vertical-speed" style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: #fff;">${flightInfo.verticalSpeed >= 0 ? '+' : ''}${flightInfo.verticalSpeed} fpm</span>
       </div>
       <div style="display: flex; justify-content: space-between; grid-column: span 2;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; color: #fff;">Duration:</span>
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 14px; font-weight: 500; color: #fff;">${flightDuration}</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; color: #fff;">Duration:</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 500; color: #fff;">${flightDuration}</span>
       </div>
     </div>
     
-    <!-- SparkLine Progress Widget -->
-    <div class="spark-line-container" style="margin-bottom: 16px;">
-      <div style="font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 6px; font-family: 'JetBrains Mono', monospace;">Route Progress</div>
-      <canvas id="following-spark-line" class="spark-line-canvas" style="width: 100%; height: 40px; border-radius: 4px; background: rgba(255,255,255,0.05);"></canvas>
+    <!-- WIND CONDITIONS PANEL -->
+    <div style="background: rgba(100, 149, 237, 0.15); border: 1px solid rgba(100, 149, 237, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+      <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+        <span style="font-size: 16px;">💨</span>
+        <span style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #6495ED;">Wind Conditions</span>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+        <div style="font-family: 'Inter', sans-serif; font-size: 12px; color: rgba(255,255,255,0.8);">
+          Wind: ${windDirection.toString().padStart(3, '0')}° at ${windSpeed} kts
+        </div>
+        <div style="font-family: 'Inter', sans-serif; font-size: 12px; color: ${windColor}; font-weight: 500;">
+          ${windType}
+        </div>
+      </div>
     </div>
     
-    <!-- Turbulence Indicator -->
-    ${flightInfo.turbulence !== 'Smooth' ? `
-      <div style="background: rgba(243, 126, 25, 0.15); border: 1px solid rgba(243, 126, 25, 0.3); border-radius: 6px; padding: 8px 12px; text-align: center; margin-bottom: 16px;">
-        <span style="font-family: 'JetBrains Mono', monospace; font-size: 13px; font-weight: 400; color: #F37E19;">${flightInfo.turbulence} Turbulence</span>
+    <!-- TURBULENCE & WEATHER PANEL -->
+    ${flightInfo.turbulence !== 'Smooth' || Math.random() > 0.7 ? `
+      <div style="background: rgba(243, 126, 25, 0.15); border: 1px solid rgba(243, 126, 25, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="font-size: 16px;">🌪️</span>
+          <span style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #F37E19;">Weather Conditions</span>
+        </div>
+        <div style="font-family: 'Inter', sans-serif; font-size: 12px; color: rgba(255,255,255,0.8);">
+          Turbulence: <span style="color: ${flightInfo.turbulence === 'Moderate' ? '#FF9800' : flightInfo.turbulence === 'Light' ? '#FFC107' : '#4CAF50'}; font-weight: 500;">${flightInfo.turbulence}</span>
+        </div>
+        ${Math.random() > 0.6 ? `
+          <div style="font-family: 'Inter', sans-serif; font-size: 12px; color: rgba(255,255,255,0.8); margin-top: 4px;">
+            Visibility: ${Math.random() > 0.3 ? 'Clear' : 'Reduced'}
+          </div>
+        ` : ''}
       </div>
     ` : ''}
     
+    <!-- PROXIMITY ALERTS PANEL -->
+    ${nearbyAirports.length > 0 ? `
+      <div style="background: rgba(76, 175, 80, 0.15); border: 1px solid rgba(76, 175, 80, 0.3); border-radius: 8px; padding: 12px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+          <span style="font-size: 16px;">🛩️</span>
+          <span style="font-family: 'Inter', sans-serif; font-size: 14px; font-weight: 600; color: #4CAF50;">Nearby Airports</span>
+        </div>
+        ${nearbyAirports.slice(0, 3).map(airport => `
+          <div style="display: flex; justify-content: space-between; font-family: 'Inter', sans-serif; font-size: 12px; color: rgba(255,255,255,0.8); margin-bottom: 4px;">
+            <span>${airport.code} ${airport.isDestination ? '(DEST)' : airport.isOrigin ? '(ORIG)' : ''}</span>
+            <span>${airport.distance} NM</span>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
+    
+    <!-- SparkLine Progress Widget -->
+    <div class="spark-line-container" style="margin-bottom: 16px;">
+      <div style="font-size: 11px; color: rgba(255,255,255,0.4); margin-bottom: 6px; font-family: 'Inter', sans-serif;">Route Progress</div>
+      <canvas id="following-spark-line" class="spark-line-canvas" style="width: 100%; height: 40px; border-radius: 4px; background: rgba(255,255,255,0.05);"></canvas>
+    </div>
+    
     <!-- Stop Following Button -->
-    <div class="stop-following-button" style="display: block !important; background: rgba(255,82,82,0.2); border: 1px solid rgba(255,82,82,0.4); color: #ff5252; padding: 12px; text-align: center; border-radius: 6px; cursor: pointer; font-family: 'JetBrains Mono', monospace; font-size: 14px; margin-top: 16px; transition: all 0.2s;">Stop Following</div>
+    <div class="stop-following-button" style="display: block !important; background: rgba(255,82,82,0.2); border: 1px solid rgba(255,82,82,0.4); color: #ff5252; padding: 12px; text-align: center; border-radius: 6px; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 14px; margin-top: 16px; transition: all 0.2s;">Stop Following</div>
   `;
   
   detailView.style.display = 'block';
@@ -2809,6 +2929,12 @@ function hideFollowingDetailView() {
   if (detailView) {
     detailView.style.display = 'none';
     detailView.innerHTML = '';
+  }
+  
+  // Show sidebar header
+  const sidebarHeader = document.querySelector('.sidebar-header');
+  if (sidebarHeader) {
+    sidebarHeader.style.display = 'block';
   }
   
   // Show normal flight list
@@ -3019,7 +3145,7 @@ function initializeMiniMap(flight, progress) {
   // Create mini Leaflet map with BRIGHT, clear styling
   const miniMap = L.map(miniMapContainer, {
     center: [0, 0], // Will be set based on flight route
-    zoom: 3,
+    zoom: 5,
     zoomControl: false,
     attributionControl: false,
     dragging: false,
@@ -3033,7 +3159,7 @@ function initializeMiniMap(flight, progress) {
   // Add BRIGHT, high-contrast map tiles
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '',
-    opacity: 0.9 // Much higher opacity for better visibility
+    opacity: 1 // Much higher opacity for better visibility
   }).addTo(miniMap);
   
   // Calculate proper bounds and zoom level using MATH
@@ -3199,7 +3325,7 @@ function addBrightMiniMapLabels(miniMap, flight) {
   });
 }
 
-// Update following detail view in real-time
+// Update following detail view in real-time with ENHANCED FEATURES
 function updateFollowingDetailView(flight, progress, flightInfo) {
   if (!followingEnabled || !followingFlight || followingFlight.id !== flight.id) {
     return;
@@ -3210,12 +3336,73 @@ function updateFollowingDetailView(flight, progress, flightInfo) {
     return;
   }
   
-  // Update flight phase
-  let phaseText = "En Route";
+  // ENHANCED FLIGHT PHASE DETECTION (same logic as showFollowingDetailView)
+  let enhancedPhase = "En Route";
+  let phaseColor = "#4CAF50";
+  let phaseIcon = "✈︎";
   
-  const phaseElement = detailView.querySelector('span[style*="rgba(255,255,255,0.5)"]');
+  if (progress < 0.05) {
+    enhancedPhase = "Taxiing";
+    phaseColor = "#FF9800";
+    phaseIcon = "🛫";
+  } else if (progress < 0.15) {
+    enhancedPhase = "Climbing";
+    phaseColor = "#2196F3";
+    phaseIcon = "↗";
+  } else if (progress < 0.25) {
+    enhancedPhase = "Initial Cruise";
+    phaseColor = "#4CAF50";
+    phaseIcon = "→";
+  } else if (progress < 0.75) {
+    enhancedPhase = "Cruise";
+    phaseColor = "#4CAF50";
+    phaseIcon = "→";
+  } else if (progress < 0.85) {
+    enhancedPhase = "Descending";
+    phaseColor = "#FF9800";
+    phaseIcon = "↘";
+  } else if (progress < 0.95) {
+    enhancedPhase = "Approach";
+    phaseColor = "#FF5722";
+    phaseIcon = "🛬";
+  } else if (progress < 0.98) {
+    enhancedPhase = "Final Approach";
+    phaseColor = "#F44336";
+    phaseIcon = "⬇";
+  } else if (progress < 1.0) {
+    enhancedPhase = "Landing";
+    phaseColor = "#9C27B0";
+    phaseIcon = "🛬";
+  } else {
+    enhancedPhase = "Landed";
+    phaseColor = "#607D8B";
+    phaseIcon = "✓";
+  }
+  
+  // Update flight phase in UI
+  const phaseElement = detailView.querySelector('span[style*="font-weight: 500; color:"]');
   if (phaseElement) {
-    phaseElement.textContent = phaseText;
+    phaseElement.textContent = enhancedPhase;
+    phaseElement.style.color = phaseColor;
+    
+    // Update icon
+    const iconElement = phaseElement.parentElement.querySelector('div');
+    if (iconElement) {
+      iconElement.textContent = phaseIcon;
+    }
+    
+    // Update background
+    const phaseContainer = phaseElement.parentElement;
+    if (phaseContainer) {
+      phaseContainer.style.background = `${phaseColor}20`;
+      phaseContainer.style.borderColor = `${phaseColor}60`;
+    }
+  }
+  
+  // Update route progress indicator
+  const progressIndicator = detailView.querySelector('div[style*="left: "]');
+  if (progressIndicator && progressIndicator.style.left) {
+    progressIndicator.style.left = `${progress * 100}%`;
   }
   
   // Update flight data
@@ -3242,25 +3429,86 @@ function updateFollowingDetailView(flight, progress, flightInfo) {
     const nextIndex = Math.min(currentIndex + 1, flight.path.length - 1);
     const segmentProgress = (progress * (flight.path.length - 1)) - currentIndex;
     
-    // INTERPOLATE exact current position using math
-    const currentPoint = flight.path[currentIndex];
-    const nextPoint = flight.path[nextIndex];
+    // Get current path position for updating
+    const exactIndex = progress * (flight.path.length - 1);
+    const index = Math.floor(exactIndex);
+    const nextIndexMap = Math.min(index + 1, flight.path.length - 1);
+    const currentPoint = flight.path[index];
+    const nextPoint = flight.path[nextIndexMap];
+    const mapSegmentProgress = exactIndex - index;
     
-    const currentLat = currentPoint.lat + (nextPoint.lat - currentPoint.lat) * segmentProgress;
-    const currentLon = currentPoint.lon + (nextPoint.lon - currentPoint.lon) * segmentProgress;
+    // INTERPOLATE exact current position using math
+    const currentLat = currentPoint.lat + (nextPoint.lat - currentPoint.lat) * mapSegmentProgress;
+    const currentLon = currentPoint.lon + (nextPoint.lon - currentPoint.lon) * mapSegmentProgress;
     
     miniMapContainer.currentMarker.setLatLng([currentLat, currentLon]);
   }
   
-  // Update turbulence indicator
-  const turbElement = detailView.querySelector('span[style*="color: #F37E19"]');
-  if (turbElement) {
-    if (flightInfo.turbulence === 'Smooth') {
-      turbElement.parentElement.parentElement.style.display = 'none';
-    } else {
-      turbElement.parentElement.parentElement.style.display = 'block';
-      turbElement.textContent = `${flightInfo.turbulence} Turbulence`;
+  // Update wind information (dynamic updates)
+  const currentPosition = {
+    lat: flight.path[Math.floor(progress * (flight.path.length - 1))].lat,
+    lon: flight.path[Math.floor(progress * (flight.path.length - 1))].lon
+  };
+  
+  const weatherEffects = applyRealisticWeatherEffects(flight, currentPosition);
+  let windDirection = Math.round((Date.now() / 10000 + flight.seed * 3) % 360);
+  let windSpeed = Math.round(5 + Math.abs(weatherEffects.windEffect) * 100);
+  let windHeadingDiff = Math.abs(windDirection - flightInfo.heading);
+  if (windHeadingDiff > 180) windHeadingDiff = 360 - windHeadingDiff;
+  
+  let windType = "Tailwind";
+  let windColor = "#4CAF50";
+  if (windHeadingDiff < 30) {
+    windType = "Headwind";
+    windColor = "#FF5722";
+  } else if (windHeadingDiff > 150) {
+    windType = "Tailwind"; 
+    windColor = "#4CAF50";
+  } else {
+    windType = "Crosswind";
+    windColor = "#FF9800";
+  }
+  
+  // Find and update wind information in UI
+  const windElements = detailView.querySelectorAll('div');
+  let windSpeedElement = null;
+  for (let element of windElements) {
+    if (element.textContent.includes('Wind:')) {
+      windSpeedElement = element;
+      break;
     }
+  }
+  if (windSpeedElement) {
+    windSpeedElement.textContent = `Wind: ${windDirection.toString().padStart(3, '0')}° at ${windSpeed} kts`;
+  }
+  
+  const windTypeElements = detailView.querySelectorAll('div[style*="font-weight: 500"]');
+  let windTypeElement = null;
+  for (let element of windTypeElements) {
+    if (element.textContent.toLowerCase().includes('wind')) {
+      windTypeElement = element;
+      break;
+    }
+  }
+  if (windTypeElement) {
+    windTypeElement.textContent = windType;
+    windTypeElement.style.color = windColor;
+  }
+  
+  // Update turbulence indicator if exists
+  const turbulenceElements = detailView.querySelectorAll('span[style*="font-weight: 500"]:not([data-field])');
+  let turbulenceElement = null;
+  for (let element of turbulenceElements) {
+    if (element.parentElement && element.parentElement.textContent.includes('Turbulence')) {
+      turbulenceElement = element;
+      break;
+    }
+  }
+  if (turbulenceElement) {
+    turbulenceElement.textContent = flightInfo.turbulence;
+    const turbColor = flightInfo.turbulence === 'Moderate' ? '#FF9800' : 
+                     flightInfo.turbulence === 'Light' ? '#FFC107' : '#4CAF50';
+    turbulenceElement.style.color = turbColor;
   }
 }
 
@@ -3350,6 +3598,8 @@ function createReturnFlight(originalFlight) {
 
 // Check for flights that should generate return flights
 function processCompletedFlights() {
+  const completedFlights = []; // Track flights to remove
+  
   flightData.forEach((flight, index) => {
     const now = Date.now();
     const elapsedTime = now - flight.actualStartTime;
@@ -3374,10 +3624,39 @@ function processCompletedFlights() {
         leafletMarkers[returnFlight.id] = createPlaneMarker(returnFlight);
         pathCanvases[returnFlight.id] = createPathCanvas(returnFlight);
         
-        console.log(`📊 Total flights now: ${flightData.length} (including ${Object.keys(flightData).filter(f => flightData[f].isReturnFlight).length} return flights)`);
+        console.log(`📊 Total flights now: ${flightData.length} (including ${flightData.filter(f => f.isReturnFlight).length} return flights)`);
       }
+      
+      // Mark this flight for removal (don't remove immediately to avoid array issues)
+      completedFlights.push(flight);
+      
+      console.log(`✈️ Flight ${flight.callsign} completed journey (${Math.round(progress * 100)}% progress). Will be removed.`);
     }
   });
+  
+  // Remove all completed flights from the system
+  completedFlights.forEach(flight => {
+    removeFlightFromSystem(flight);
+  });
+  
+  // Generate replacement flights to maintain flight count
+  if (completedFlights.length > 0) {
+    console.log(`🔄 Removed ${completedFlights.length} completed flights. Total active flights: ${flightData.length}`);
+    
+    // Add some new flights to maintain activity
+    const newFlightsToGenerate = Math.min(completedFlights.length, 3); // Don't add too many at once
+    for (let i = 0; i < newFlightsToGenerate; i++) {
+      // Generate a completely new flight (reuse generation logic)
+      const newFlight = generateRandomFlight();
+      if (newFlight) {
+        flightData.push(newFlight);
+        planeDivs[newFlight.id] = createPlane(newFlight);
+        leafletMarkers[newFlight.id] = createPlaneMarker(newFlight);
+        pathCanvases[newFlight.id] = createPathCanvas(newFlight);
+        console.log(`🆕 Generated new flight: ${newFlight.callsign} (${newFlight.origin} → ${newFlight.destination})`);
+      }
+    }
+  }
 }
 
 // Get flight history statistics
@@ -3602,4 +3881,57 @@ function createRadarWaves(plane, flight) {
   // Only create radar waves for visible flights to improve performance
   const isVisible = plane.style.display !== 'none';
   if (!isVisible) return;
+}
+
+// Generate a single random flight to replace completed flights
+function generateRandomFlight() {
+  const airlines = ['AI', 'IX', 'SG', 'UK', 'I5', 'G8', '6E', 'QP'];
+  
+  const majorHubs = [
+    { code: "BLR", name: "Bangalore", lat: 13.1989, lon: 77.7068 },
+    { code: "DEL", name: "Delhi", lat: 28.5562, lon: 77.1000 },
+    { code: "BOM", name: "Mumbai", lat: 19.0896, lon: 72.8656 },
+    { code: "MAA", name: "Chennai", lat: 12.9941, lon: 80.1709 },
+    { code: "HYD", name: "Hyderabad", lat: 17.2403, lon: 78.4294 },
+    { code: "CCU", name: "Kolkata", lat: 22.6547, lon: 88.4467 }
+  ];
+  
+  const regionalAirports = [
+    { code: "CJB", name: "Coimbatore", lat: 11.0300, lon: 77.0434 },
+    { code: "COK", name: "Cochin", lat: 10.1518, lon: 76.3930 },
+    { code: "TRV", name: "Trivandrum", lat: 8.4833, lon: 76.9200 },
+    { code: "MYQ", name: "Mysore", lat: 12.2300, lon: 76.6560 },
+    { code: "PNQ", name: "Pune", lat: 18.5793, lon: 73.9089 },
+    { code: "GOI", name: "Goa", lat: 15.3808, lon: 73.8314 }
+  ];
+  
+  try {
+    // Select random start and end airports
+    const allAirports = [...majorHubs, ...regionalAirports];
+    const startAirport = allAirports[Math.floor(Math.random() * allAirports.length)];
+    let endAirport;
+    do {
+      endAirport = allAirports[Math.floor(Math.random() * allAirports.length)];
+    } while (endAirport.code === startAirport.code);
+    
+    // Generate flight number
+    const airline = airlines[Math.floor(Math.random() * airlines.length)];
+    const flightNumber = Math.floor(Math.random() * 9000) + 1000;
+    
+    // Create the flight
+    const color = getRandomColor(Math.random() * 1000);
+    const flight = createFlight(
+      startAirport, 
+      endAirport, 
+      color, 
+      `flight-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      airline,
+      flightNumber
+    );
+    
+    return flight;
+  } catch (error) {
+    console.error('Error generating random flight:', error);
+    return null;
+  }
 }

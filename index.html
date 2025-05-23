@@ -7,6 +7,17 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
   
+  <!-- Custom PerfectlyNineties Font -->
+  <style>
+    @font-face {
+      font-family: 'PerfectlyNineties';
+      src: url('PerfectlyNineties-RegularItalic.ttf') format('truetype');
+      font-weight: normal;
+      font-style: italic;
+      font-display: swap;
+    }
+  </style>
+  
   <!-- Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
      integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
@@ -23,17 +34,27 @@
         
         <div class="header-bar">
           <div class="app-title-section">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7L12 12L22 7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 17L12 22L22 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M2 12L12 17L22 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <svg width="15" height="14" viewBox="0 0 15 14" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M5.80147 1.29592C5.80147 0.580202 6.38168 0 7.09739 0V0C7.81311 0 8.39331 0.580203 8.39331 1.29592V12.7041C8.39331 13.4198 7.81311 14 7.09739 14V14C6.38168 14 5.80147 13.4198 5.80147 12.7041V1.29592Z" fill="currentColor"/>
+              <path d="M2.32011 3.62527C1.84157 3.09306 1.88508 2.27368 2.41729 1.79514V1.79514C2.94951 1.3166 3.76888 1.36011 4.24742 1.89232L11.8751 10.3755C12.3537 10.9077 12.3101 11.7271 11.7779 12.2056V12.2056C11.2457 12.6842 10.4263 12.6407 9.9478 12.1085L2.32011 3.62527Z" fill="currentColor"/>
+              <path d="M1.28863 7.68454C0.57694 7.60874 0.0614454 6.97035 0.137242 6.25866V6.25866C0.213039 5.54697 0.851424 5.03148 1.56312 5.10727L12.9071 6.31543C13.6188 6.39123 14.1343 7.02962 14.0585 7.74131V7.74131C13.9827 8.453 13.3443 8.96849 12.6326 8.8927L1.28863 7.68454Z" fill="currentColor"/>
+              <path d="M3.23627 11.3929C2.65637 11.8124 1.84621 11.6823 1.42673 11.1024V11.1024C1.00724 10.5225 1.13728 9.71237 1.71718 9.29288L10.9605 2.60649C11.5404 2.187 12.3505 2.31704 12.77 2.89694V2.89694C13.1895 3.47684 13.0595 4.287 12.4796 4.70648L3.23627 11.3929Z" fill="currentColor"/>
             </svg>
             <span class="app-title">Flight Path Simulation</span>
+            
+            <!-- Repo Button - part of the left title section -->
+            <a href="#" class="repo-button">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.237 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.30.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+              Repo
+            </a>
           </div>
-          <a href="#" class="repo-button">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
-            Repo
-          </a>
+          
+          <!-- Live Time Component - alone on the right -->
+          <div class="live-time-widget">
+            <div class="status-dot"></div>
+            <span id="current-time" class="time-display">10:20</span>
+            <span id="current-day" class="day-display">Fri</span>
+          </div>
         </div>
   <div id="flight-map">
     <!-- Map features will be added here -->
@@ -64,7 +85,7 @@
   <!-- Loading overlay -->
   <div id="loading-overlay" class="loading-overlay">
     <div class="loading-content">
-      <div class="loading-title">Flight Tracker</div>
+      <div class="loading-title">Flight Track Simulation</div>
       <div class="loading-subtitle">Initializing radar systems...</div>
       <div class="loading-progress">
         <div id="loading-progress-bar" class="loading-progress-bar"></div>

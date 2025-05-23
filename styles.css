@@ -149,10 +149,10 @@ body, html {
 }
 
 .sidebar-header {
+  font-family: 'PerfectlyNineties', 'Inter', sans-serif;
   font-size: 28px;
   margin-bottom: 24px;
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
-  font-weight: 700;
+  font-weight: normal;
   white-space: nowrap; /* Prevent header from wrapping in collapsed state */
 }
 
@@ -259,26 +259,33 @@ body, html {
 
 /* Header bar */
 .header-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: transparent;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 8px 12px;
-  background-color: #fff;
-  border-radius: 12px;
-  margin: 0;
-  box-shadow: 0px 1.3px 3.9px 0px rgba(203, 190, 178, 0.55);
-  border: 1px solid #EFEEEE;
-  position: absolute;
-  top: 24px;
-  left: 24px;
-  z-index: 10;
-  width: 20%;
+  padding: 16px 24px;
+  z-index: 1000;
+  pointer-events: none;
+}
+
+.header-bar > * {
+  pointer-events: auto;
 }
 
 .app-title-section {
   display: flex;
   align-items: center;
   gap: 8px;
+  background-color: #fff;
+  border-radius: 12px;
+  padding: 8px 12px;
+  box-shadow: 0px 1.3px 3.9px 0px rgba(203, 190, 178, 0.55);
+  border: 1px solid #EFEEEE;
 }
 
 .app-title-section svg {
@@ -289,9 +296,10 @@ body, html {
 }
 
 .app-title {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'PerfectlyNineties', 'Inter', sans-serif;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: normal;
+  margin: 0;
   letter-spacing: 0.5px;
   color: #0E0F11;
 }
@@ -299,13 +307,16 @@ body, html {
 .repo-button {
   display: flex;
   align-items: center;
-  gap: 2.6px;
-  padding: 2.6px 5.2px;
-  background-color: rgba(194, 190, 188, 0.2);
-  border-radius: 2.6px;
-  font-size: 10px;
+  gap: 4px;
+  background: rgba(194, 190, 188, 0.2);
   color: #736862;
   text-decoration: none;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-family: 'Instrument Sans', sans-serif;
+  font-size: 10px;
+  font-weight: 500;
+  transition: background-color 0.2s ease;
 }
 
 .repo-button svg {
@@ -540,16 +551,17 @@ body.following-mode .border {
 }
 
 .loading-title {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  font-family: 'PerfectlyNineties', 'Inter', sans-serif;
   font-size: 32px;
-  font-weight: 700;
+  font-weight: normal;
   margin-bottom: 16px;
   opacity: 0.9;
 }
 
 .loading-subtitle {
-  font-family: 'JetBrains Mono', 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+  font-family: 'JetBrains Mono', monospace;
   font-size: 14px;
+  font-weight: normal;
   opacity: 0.7;
   margin-bottom: 24px;
 }
@@ -643,32 +655,33 @@ body.following-mode .border {
 
 /* Stop Following Button */
 .stop-following-button {
-  display: none; /* Hidden by default */
-  background: rgba(252, 179, 179, 0.17) !important;
-  border: 1px solid rgba(242, 113, 113, 0.2) !important;
-  border-radius: 2.66px !important;
-  padding: 8px !important;
-  margin: 16px 0 !important;
-  text-align: center !important;
-  font-family: 'Instrument Sans', sans-serif !important;
-  font-weight: 500 !important;
-  font-size: 14px !important;
-  line-height: 1.35em !important;
-  letter-spacing: 0.257% !important;
-  color: #F27171 !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  user-select: none;
+  margin-top: 24px; /* Reasonable space above */
+  margin-bottom: 16px; /* Normal space below */
+  margin-left: 8px; /* Normal left margin */
+  margin-right: 8px; /* Normal right margin */
+  flex-shrink: 0; /* Don't allow it to shrink */
+  position: sticky;
+  bottom: 16px; /* Normal position from bottom */
+  background: rgba(40, 44, 52, 0.95) !important; /* Darker background for better contrast */
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 82, 82, 0.4) !important;
+  color: #ff5252 !important;
+  padding: 12px 16px; /* Normal padding */
+  text-align: center;
+  border-radius: 6px; /* Normal border radius */
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+  font-size: 14px;
+  transition: all 0.2s;
 }
 
 .stop-following-button:hover {
-  background: rgba(252, 179, 179, 0.25) !important;
-  border-color: rgba(242, 113, 113, 0.3) !important;
+  background: rgba(40, 44, 52, 0.95) !important;
+  border-color: rgba(255, 82, 82, 0.4) !important;
 }
 
 .stop-following-button:active {
-  background: rgba(252, 179, 179, 0.35) !important;
-  transform: translateY(1px);
+  background: rgba(40, 44, 52, 0.95) !important;
 }
 
 /* RADAR WAVE ANIMATION FOR AIRCRAFT */
@@ -705,4 +718,132 @@ body.following-mode .border {
   pointer-events: none;
   z-index: 999;
   box-shadow: 0 0 5px rgba(66, 165, 245, 0.4);
+}
+
+/* Following detail view styles */
+#following-detail-view {
+  height: calc(100vh - 120px); /* Account for app header and some padding */
+  overflow-y: hidden; /* Prevent scroll unless absolutely necessary */
+  overflow-x: hidden; /* Prevent horizontal scroll */
+  padding-right: 8px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Only show scroll if content truly overflows */
+#following-detail-view.scrollable {
+  overflow-y: auto;
+}
+
+/* Edge-to-edge mini-map in following mode */
+#following-detail-view .mini-map-container {
+  margin: 0 -12px 16px -12px; /* Reduced negative margins to prevent overflow */
+  border-radius: 0; /* Remove border radius for edge-to-edge */
+  padding: 0; /* Remove internal padding */
+  border: none; /* Remove border */
+  background: transparent; /* Remove background */
+}
+
+#following-detail-view .mini-map-container #following-mini-map {
+  border-radius: 0; /* Remove border radius from map itself */
+}
+
+/* Edge-to-edge sparkline in following mode */
+#following-detail-view .spark-line-container {
+  margin-left: -12px; /* Reduced to prevent overflow */
+  margin-right: -12px; /* Reduced to prevent overflow */
+  padding-left: 12px;
+  padding-right: 12px;
+}
+
+#following-detail-view .spark-line-canvas {
+  border-radius: 0 !important; /* Edge-to-edge for sparkline too */
+}
+
+/* Hide "Recent Flights" heading when following */
+body.following-mode .sidebar-header {
+  display: none !important;
+}
+
+/* Hide flights container when following */
+body.following-mode .flights-container {
+  display: none !important;
+}
+
+/* Hide pagination when following */
+body.following-mode .pagination-controls {
+  display: none !important;
+}
+
+/* Adjust sidebar content height when following (no pagination) */
+body.following-mode .sidebar-content {
+  height: calc(100vh - 32px) !important; /* Full height minus small top margin */
+  padding-top: 16px !important; /* Add some top padding when following */
+  overflow-x: hidden !important; /* Prevent horizontal scroll */
+}
+
+/* Make following detail view take full available space */
+body.following-mode #following-detail-view {
+  height: 100% !important;
+  padding-bottom: 16px !important; /* Add bottom padding */
+}
+
+/* Live Time Widget */
+.live-time-widget {
+  display: flex;
+  align-items: center;
+  justify-content: center; /* Match Figma justifyContent: center */
+  gap: 8px; /* Match Figma gap exactly */
+  background: #FFFFFF;
+  border: 1px solid #EFEEEE;
+  border-radius: 4px;
+  padding: 8px 12px;
+  box-shadow: 0px 1.29px 3.88px 0px rgba(203, 190, 178, 0.55);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  background: #F37E19;
+  border: 2px solid rgba(243, 126, 25, 0.16);
+  border-radius: 50%;
+  animation: statusBlink 2s ease-in-out infinite;
+  flex-shrink: 0; /* Prevent shrinking */
+}
+
+@keyframes statusBlink {
+  0%, 50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  25% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+  75% {
+    opacity: 0.4;
+    transform: scale(0.9);
+  }
+}
+
+.time-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.5em;
+  letter-spacing: 1%;
+  color: #0E0F11;
+  margin: 0;
+  white-space: nowrap; /* Prevent wrapping */
+}
+
+.day-display {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 400;
+  font-size: 14px;
+  line-height: 1.5em;
+  letter-spacing: 1%;
+  color: #0E0F11;
+  margin: 0;
+  white-space: nowrap; /* Prevent wrapping */
 } 
